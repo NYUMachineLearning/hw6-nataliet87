@@ -2,7 +2,9 @@
 title: "Support Vector Machines(SVMs) Tutorial"
 author: "Sonali Narang"
 date: "11/12/2019"
-output: pdf_document
+output:
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
@@ -105,6 +107,126 @@ confusionMatrix(svm_test, reference = test_classification$Class)
 
 ##Homework
 
-1. Choose an appropriate machine learning dataset and use SVM with two different kernels. Campare the results. 
+1. Choose an appropriate machine learning dataset and use SVM with two different kernels. Compare the results. 
+
+```{r}
+data(Ionosphere)
+head(Ionosphere)
+str(Ionosphere)
+
+
+# convert V1 to numeric and drop V2 because it only contains one value:
+
+ion <- Ionosphere %>% transform(V1 = as.numeric(V1)) %>% select(-V2)
+```
+
+
+```{r}
+ion[is.na(ion)] = 0
+
+
+#  split into train and test sets
+train_size = floor(0.75 * nrow(ion))
+train_pos <- sample(seq_len(nrow(ion)), size = train_size)
+
+train_set <- ion[train_pos, ]
+test_set <- ion[-train_pos, ]
+```
+
+
+** Linear Kernel **
+
+```{r}
+set.seed(25)
+
+control = trainControl(method = "repeatedcv", repeats = 10, classProbs = T, savePredictions = T)
+
+svm = train(Class~.,  data = train_set, method = "svmLinear", tuneLength = 20, trControl = control)
+
+svm
+```
+
+##Receiver operating characteristic(ROC) curve
+```{r}
+roc(predictor = svm$pred$bad, response = svm$pred$obs)$auc
+
+plot(x = roc(predictor = svm$pred$bad, response = svm$pred$obs)$specificities, 
+     y = roc(predictor = svm$pred$bad, response = svm$pred$obs)$sensitivities, 
+     col= "blue", xlim = c(1, 0), type ="l", 
+     ylab = "Sensitivity", xlab = "Specificity")
+
+```
+
+## Test Set 
+```{r}
+svm_test = predict(svm, newdata = test_set)
+confusionMatrix(svm_test, reference = test_set$Class)
+```
+
+
+
+** Polynomial Kernel **
+
+```{r}
+set.seed(25)
+
+control = trainControl(method = "repeatedcv", repeats = 10, classProbs = T, savePredictions = T)
+
+svm = train(Class~.,  data = train_set, method = "svmPoly", tuneLength = 5, trControl = control)
+svm
+```
+
+##Receiver operating characteristic(ROC) curve
+```{r}
+roc(predictor = svm$pred$bad, response = svm$pred$obs)$auc
+
+plot(x = roc(predictor = svm$pred$bad, response = svm$pred$obs)$specificities, 
+     y = roc(predictor = svm$pred$bad, response = svm$pred$obs)$sensitivities, 
+     col= "blue", xlim = c(1, 0), type ="l", 
+     ylab = "Sensitivity", xlab = "Specificity")
+
+```
+
+## Test Set 
+```{r}
+svm_test = predict(svm, newdata = test_set)
+confusionMatrix(svm_test, reference = test_set$Class)
+```
+
+
+
+
 
 2. Attempt using SVM after using a previously covered feature selection method. Do the results improve? Explain. 
+
+## Feature selection method: Recursive feature elimination:
+```{r}
+#define the control 
+control = rfeControl(functions = caretFuncs, number = 5)
+# run the RFE algorithm
+results = rfe(ion[,1:33], ion[,34], sizes = c(2,5,8,10,15), rfeControl = control, method = "svmPoly")
+
+results
+```
+
+
+
+```{r}
+results$variables
+plot(results, type=c('g', 'o'))
+predictors(results)
+```
+
+```{r}
+svm$pred
+```
+
+
+## Test Set 
+```{r}
+svm_test = predict(results, newdata = test_set)
+confusionMatrix(svm_test, reference = test_set$Class)
+```
+
+The results are slightly better with features selection than with  (94.32% accuracy compared with 93.18%). Likely there is some relationship between some of the un-selected features, that don't add any new information and just add noise when they're included in the model. 
+
